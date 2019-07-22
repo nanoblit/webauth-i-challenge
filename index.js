@@ -5,12 +5,10 @@ const sillyBcrypt = require('./sillyBcrypt');
 const app = express();
 app.use(express.json());
 
-async function restricted(req, res, next) {
+async function checkCredentials(name, password, res, next) {
   try {
-    const { name, password } = req.headers;
     const user = await db.getUserByName(name);
-    // Make secure using hashing
-    if (!user || user.password !== password) {
+    if (!user || !sillyBcrypt.compare(password, user.password)) {
       res.status(401).json({ error: 'You shall not pass!' });
     } else {
       next();
@@ -20,19 +18,14 @@ async function restricted(req, res, next) {
   }
 }
 
+async function restricted(req, res, next) {
+  const { name, password } = req.headers;
+  checkCredentials(name, password, res, next);
+}
+
 async function checkCredentialsInBody(req, res, next) {
-  try {
-    const { name, password } = req.body;
-    const user = await db.getUserByName(name);
-    // Make secure using hashing
-    if (!user || user.password !== password) {
-      res.status(401).json({ error: 'You shall not pass!' });
-    } else {
-      next();
-    }
-  } catch (error) {
-    next(error);
-  }
+  const { name, password } = req.body;
+  checkCredentials(name, password, res, next);
 }
 
 app.get('/api/users', restricted, async (req, res, next) => {
@@ -52,7 +45,8 @@ app.post('/api/register', async (req, res, next) => {
     } else if (await db.getUserByName(body.name)) {
       res.status(400).json({ error: 'Name must be unique' });
     } else {
-      const user = await db.addUser(body);
+      const password = sillyBcrypt.hash(body.password, 12);
+      const user = await db.addUser({ ...body, password });
       res.status(201).json(user);
     }
   } catch (error) {
