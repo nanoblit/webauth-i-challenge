@@ -1,5 +1,4 @@
-const knex = require('knex');
-const db = knex(require('../knexfile').development);
+const db = require('./dbConfig');
 
 function getUsers() {
   return db('users');

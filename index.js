@@ -1,12 +1,43 @@
 const express = require('express');
+const session = require('express-session');
+const KnexSessionStore = require('connect-session-knex')(session);
 const db = require('./data/db');
 const sillyBcrypt = require('./sillyBcrypt');
 
 const app = express();
 app.use(express.json());
+app.use(
+  session({
+    name: 'sessionId',
+    secret: 'keep it secret, keep it long',
+    cookie: {
+      maxAge: 1000 * 60 * 60,
+      secure: false,
+      httpOnly: true,
+    },
+    resave: false,
+    saveUninitialized: true,
+    store: new KnexSessionStore({
+      knex: require('./data/dbConfig.js'),
+      tablename: 'sessions',
+      sidfieldname: 'sid',
+      createtable: true,
+      clearInterval: 1000 * 60 * 60,
+    }),
+  }),
+);
 
-async function checkCredentials(name, password, res, next) {
+function restricted(req, res, next) {
+  if (req.session && req.session.user) {
+    next();
+  } else {
+    res.status(400).json({ message: 'No credentials provided' });
+  }
+}
+
+async function checkCredentialsInBody(req, res, next) {
   try {
+    const { name, password } = req.body;
     const user = await db.getUserByName(name);
     if (!user || !sillyBcrypt.compare(password, user.password)) {
       res.status(401).json({ error: 'You shall not pass!' });
@@ -16,16 +47,6 @@ async function checkCredentials(name, password, res, next) {
   } catch (error) {
     next(error);
   }
-}
-
-async function restricted(req, res, next) {
-  const { name, password } = req.headers;
-  checkCredentials(name, password, res, next);
-}
-
-async function checkCredentialsInBody(req, res, next) {
-  const { name, password } = req.body;
-  checkCredentials(name, password, res, next);
 }
 
 app.get('/api/users', restricted, async (req, res, next) => {
@@ -55,6 +76,7 @@ app.post('/api/register', async (req, res, next) => {
 });
 
 app.post('/api/login', checkCredentialsInBody, (req, res, next) => {
+  req.session.user = req.body;
   res.status(200).json('Logged in');
 });
 

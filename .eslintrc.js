@@ -16,6 +16,7 @@ module.exports = {
     "linebreak-style": 0,
     "func-names": 0,
     "arrow-parens": 0,
-    "no-plusplus": 0
+    "no-plusplus": 0,
+    "global-require": 0
   }
 };
